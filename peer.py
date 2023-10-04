@@ -1,5 +1,6 @@
 import socket
 import threading
+import file_utils  # Import the file_utils module
 
 def connect_to_server(server_ip, server_port):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -19,6 +20,15 @@ def request_file_list(client_socket):
     response = client_socket.recv(1024).decode('utf-8')
     print(response)
 
+def send_chunk(socket, chunk):
+    socket.sendall(len(chunk).to_bytes(4, byteorder='big'))
+    socket.sendall(chunk)
+
+def receive_chunk(socket):
+    chunk_size = int.from_bytes(socket.recv(4), byteorder='big')
+    chunk = socket.recv(chunk_size)
+    return chunk
+
 def main():
     # Create a socket object
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -33,6 +43,11 @@ def main():
         {"name": "file1.txt", "size": 12345},
         {"name": "file2.txt", "size": 67890}
     ]
+
+    file_path = 'file1.txt'
+    chunks = file_utils.divide_file(file_path, 1024)
+    for chunk in chunks:
+        send_chunk(client_socket, chunk)
 
     # Call the register_files function
     register_files(client_socket, files)

@@ -25,6 +25,27 @@ def handle_client(client_socket):
     client_socket.send(b'ACK')
     client_socket.close()
 
+file_registry = {}  # A dictionary to store file info and chunks
+
+def handle_client(client_socket):
+    request = client_socket.recv(1024).decode('utf-8')
+    print(f'Received: {request}')
+
+    command, *args = request.split('|')
+
+    if command == 'Register Request':
+        # Process file registration
+        num_files = int(args[0])
+        files_info = args[1:]
+        for i in range(0, len(files_info), 2):
+            file_name, file_size = files_info[i:i+2]
+            file_registry[file_name] = {'size': int(file_size), 'chunks': []}
+        client_socket.send(b'ACK')
+
+    # ... (rest of your code)
+
+    client_socket.close()
+
 if __name__ == "__main__":
     start_server()
     handle_client()
