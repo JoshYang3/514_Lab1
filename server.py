@@ -17,13 +17,6 @@ def start_server(port=9999):
         client_handler = threading.Thread(target=handle_client, args=(client_sock, addr))  # pass addr to the function
         client_handler.start()
         
-'''def handle_client(client_socket):
-    request = client_socket.recv(1024).decode('utf-8')
-    print(f'Received: {request}')
-    # Depending on the request, you might want to handle different types of messages
-    # For simplicity, sending an acknowledgement back
-    client_socket.send(b'ACK')
-    client_socket.close()'''
 
 file_registry = {}  # A dictionary to store file info and chunks
 

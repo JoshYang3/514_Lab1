@@ -14,26 +14,26 @@ def register_files(client_socket, files):
     message = f'Register Request|{len(files)}|{file_info}'
     client_socket.send(message.encode('utf-8'))
     response = client_socket.recv(1024).decode('utf-8')
-    print(response, end='\n\n')
+    print(response)
 
 def request_file_list(client_socket):
     message = 'File List Request'
     try:
         client_socket.send(message.encode('utf-8'))
         response = client_socket.recv(1024).decode('utf-8')
-        print(response, end='\n\n')
+        print(response)
     except ConnectionResetError:
-        print("Connection was reset. The server might have closed the connection\n\n.")
+        print("Connection was reset. The server might have closed the connection.")
         return
     except BrokenPipeError:
-        print("Broken pipe. The server might have closed the connection.\n\n")
+        print("Broken pipe. The server might have closed the connection.")
         return
 
 def disconnect(client_socket):
     message = 'Disconnect'
     client_socket.send(message.encode('utf-8'))
     response = client_socket.recv(1024).decode('utf-8')
-    print(response, end='\n\n')
+    print(response)
 
 def send_chunk(socket, chunk):
     socket.sendall(len(chunk).to_bytes(4, byteorder='big'))
@@ -62,7 +62,7 @@ def start_peer_server(port=1111):
         client_handler.start()
 
 def get_files_in_current_directory():
-    files_info = []
+    files_info = {}
     directory_path = os.path.dirname(os.path.abspath(__file__))
 
     for filename in os.listdir(directory_path):
@@ -70,10 +70,10 @@ def get_files_in_current_directory():
         
         if os.path.isfile(filepath):
             file_size = os.path.getsize(filepath)
-            files_info.append({
-                'name': filename,
+            files_info[filename] = {
+                'path': filepath,  # full path to the file
                 'size': file_size,
-            })
+            }
 
     return files_info
 
@@ -85,14 +85,13 @@ def handle_peer_request(client_socket, request_file):
         while True:
             request = client_socket.recv(1024).decode('utf-8')
             if not request:  # client might have disconnected
-                print(f"Client {client_addr} has disconnected.\n\n")
+                print(f"Client {client_addr} has disconnected.")
                 break
-            print(f'Received: {request}\n\n')
+            print(f'Received: {request}')
 
             command, *args = request.split('|')
 
             if command == 'File Chunk Request':
-                request_file = args[0]  # Filename is extracted from the request
                 if request_file in file_list:
                     with open(request_file, 'rb') as file:
                         # Here, for simplicity, we're sending the entire file. 
@@ -105,8 +104,7 @@ def handle_peer_request(client_socket, request_file):
                     client_socket.send(error_message.encode('utf-8'))
             client_socket.close()
     except Exception as e:
-        print(f"Error handling peer request: {e}\n\n")
-    finally:
+        print(f"Error handling peer request for {request_file}: {e}")
         client_socket.close()
 
 ### For downloading files ###
@@ -143,11 +141,11 @@ def main():
 
         if user_input == '1':
             # ... (code to register files)
-            '''files = [
+            files = [
                 {"name": "file1.txt", "size": 12345},
                 {"name": "file2.txt", "size": 67890}
-            ]'''
-            register_files(client_socket, file_list)
+            ]
+            register_files(client_socket, files)
         
         elif user_input == '2':
             # ... (code to request file list)
