@@ -58,8 +58,9 @@ def start_peer_server(port=1111):
 
     while True:
         client_sock, addr = server_socket.accept()
-        client_handler = threading.Thread(target=handle_peer_request, args=(client_sock, request_file))
+        client_handler = threading.Thread(target=handle_peer_request, args=(client_sock, addr))
         client_handler.start()
+        
 
 def get_files_in_current_directory():
     files_info = []
