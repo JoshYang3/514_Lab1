@@ -156,7 +156,7 @@ def main():
         
         elif user_input == '3':
             # ... (code to download file)
-            peer_port = input("Enter the port of the peer to download from: ")
+            peer_port = int(input("Enter the port of the peer to download from: "))
             file_name = input("Enter the name of the file to download: ")
             # Assume download_file is a function you've defined to handle file downloading
             download_file_from_peer(file_name, peer_ip, peer_port)
