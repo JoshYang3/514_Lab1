@@ -8,7 +8,7 @@ import file_utils  # Import the file_utils module
 def connect_to_server(server_ip, server_port):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # Create a socket object
     client_socket.connect((server_ip, server_port))              # Connect to the server
-    return client_socket # Return the socket object
+    return client_socket                                         # Return the socket object
 
 # Used to register files with the server
 def register_files(client_socket, files):
