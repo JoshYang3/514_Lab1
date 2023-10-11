@@ -14,7 +14,7 @@ def connect_to_server(server_ip, server_port):
 
 # Used to register files with the server
 def register_files(client_socket, files, peer_port = 1111):
-    print_out_file_current_folder()
+    print_out_file_in_current_folder()
     file_info = '|'.join(f'{filename}|{file_detail["size"]}' for filename, file_detail in files.items()) # Create a string of file info
     message = f'Register Request|{len(files)}|{file_info}|{peer_port}' # Create the message to send to the server
     client_socket.send(message.encode('utf-8'))                  # Send the message to the server
@@ -202,7 +202,27 @@ def display_menu():
 
 ### Split a complete file into chunks(each chunk is 50) ###
 def split_file_into_chunks(file_path, chunk_size=50*1024):
+    # Make a new directory called file_name
+    dir_name = "_"+file_path
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+
     with open(file_path, 'rb') as file:
+        chunk = file.read(chunk_size)
+        chunk_number = 0
+        
+        while chunk:
+            chunk_file_path = os.path.join(dir_name, f"{os.path.basename(file_path)}_chunk_{chunk_number}")
+            with open(chunk_file_path, 'wb') as chunk_file:
+                chunk_file.write(chunk)
+            
+            chunk_number += 1
+            chunk = file.read(chunk_size)
+        
+        print(f"File '{file_path}' has been split into {chunk_number} chunks and saved in folder '{dir_name}'.")
+
+
+    '''with open(file_path, 'rb') as file:
         chunk = file.read(chunk_size)
         chunk_number = 0
         
@@ -213,12 +233,11 @@ def split_file_into_chunks(file_path, chunk_size=50*1024):
             chunk_number += 1
             chunk = file.read(chunk_size)
         
-        print(f"File '{file_path}' has been split into {chunk_number} chunks.")
+        print(f"File '{file_path}' has been split into {chunk_number} chunks.")'''
 
 ### Print out all the file under current folder ###
-def print_out_file_current_folder():
-    print("Choose file to register:")
-
+def print_out_file_in_current_folder():
+    
     folder_path = ''
         
     # Get all files and folders in the current directory
@@ -226,9 +245,27 @@ def print_out_file_current_folder():
     # Filter out the items to get only files
     files = [item for item in all_items if os.path.isfile(item)]
     # Print the name of each file
+    
+    i = 1
     for file in files:
-        print(file)
+        print(str(i)+"."+file)
+        i += 1
+        
+    
+    # Choose file
+    user_input = input("Choose file to register:(only input the number)")
+    print("")
 
+    j = 1
+    for file in files:
+        if str(j) == user_input:
+            split_file_into_chunks(file)
+        j += 1
+
+    
+    
+
+###
 ### Main function ###
 def main():
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)   # Create a socket object
