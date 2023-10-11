@@ -199,6 +199,21 @@ def display_menu():
     print("4. Request file locations from server")
     print("5. Exit")
 
+### Split a complete file into chunks(each chunk is 50) ###
+def split_file_into_chunks(file_path, chunk_size=50*1024):
+    with open(file_path, 'rb') as file:
+        chunk = file.read(chunk_size)
+        chunk_number = 0
+        
+        while chunk:
+            with open(f"{file_path}_chunk_{chunk_number}", 'wb') as chunk_file:
+                chunk_file.write(chunk)
+            
+            chunk_number += 1
+            chunk = file.read(chunk_size)
+        
+        print(f"File '{file_path}' has been split into {chunk_number} chunks.")
+
 ### Main function ###
 def main():
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)   # Create a socket object
