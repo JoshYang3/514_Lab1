@@ -13,8 +13,12 @@ def connect_to_server(server_ip, server_port):
     return client_socket                                         # Return the socket object
 
 # Used to register files with the server
-def register_files(client_socket, files, peer_port = 1111):
-    print_out_file_in_current_folder()
+def register_files(client_socket, peer_port = 1111):
+    file_name = print_out_file_in_current_folder()
+    files = get_fileinfo(file_name)
+    if file_name == "":
+        print("No such file!")
+        return
     file_info = '|'.join(f'{filename}|{file_detail["size"]}' for filename, file_detail in files.items()) # Create a string of file info
     message = f'Register Request|{len(files)}|{file_info}|{peer_port}' # Create the message to send to the server
     client_socket.send(message.encode('utf-8'))                  # Send the message to the server
@@ -95,27 +99,25 @@ def start_peer_server(port=1111):
     server_socket.close()
 
 # Used to tell the server that what file chunks we have
-def get_files_in_current_directory():
+def get_fileinfo(filename):
     files_info = {}
-    directory_path = os.path.dirname(os.path.abspath(__file__))
+    """directory_path = os.path.dirname(os.path.abspath(__file__))
     exclude_files = ['utils.py', 'file_utils.py', 'peer.py']    # Files to exclude from the file registry
 
     for filename in os.listdir(directory_path):                 # Iterate through all files in the current directory
         if filename in exclude_files:                           # Skip the excluded files
             continue
-
-        filepath = os.path.join(directory_path, filename)
+    """
         
-        if os.path.isfile(filepath):
-            file_size = os.path.getsize(filepath)
-            files_info[filename] = {                            # Store the file info in a dictionary
-                'path': filepath,                               # full path to the file
-                'size': file_size,                              # size of the file
-            }
+    if os.path.isfile(filename):
+        file_size = os.path.getsize(filename)
+        files_info[filename] = {                            # Store the file info in a dictionary
+            'path': filename,                               # full path to the file
+            'size': file_size,                              # size of the file
+        }
 
     return files_info
 
-file_list = get_files_in_current_directory()                    # A dictionary to store file info and chunks
 
 # Used to handle requests from other peers
 def handle_peer_request(client_socket, client_addr):
@@ -256,12 +258,15 @@ def print_out_file_in_current_folder():
     user_input = input("Choose file to register:(only input the number)")
     print("")
 
+    file_name = ""
     j = 1
     for file in files:
         if str(j) == user_input:
+            file_name = file
             split_file_into_chunks(file)
         j += 1
-
+    
+    return file_name
     
     
 
@@ -284,7 +289,7 @@ def main():
         user_input = input("Enter the number of your choice: ")
 
         if user_input == '1':
-            register_files(client_socket, file_list, peer_port=1111)
+            register_files(client_socket, peer_port=1111)
         
         elif user_input == '2':
             request_file_list(client_socket)
