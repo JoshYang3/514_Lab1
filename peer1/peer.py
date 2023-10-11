@@ -14,6 +14,7 @@ def connect_to_server(server_ip, server_port):
 
 # Used to register files with the server
 def register_files(client_socket, files, peer_port = 1111):
+    print_out_file_current_folder()
     file_info = '|'.join(f'{filename}|{file_detail["size"]}' for filename, file_detail in files.items()) # Create a string of file info
     message = f'Register Request|{len(files)}|{file_info}|{peer_port}' # Create the message to send to the server
     client_socket.send(message.encode('utf-8'))                  # Send the message to the server
@@ -213,6 +214,20 @@ def split_file_into_chunks(file_path, chunk_size=50*1024):
             chunk = file.read(chunk_size)
         
         print(f"File '{file_path}' has been split into {chunk_number} chunks.")
+
+### Print out all the file under current folder ###
+def print_out_file_current_folder():
+    print("Choose file to register:")
+
+    folder_path = ''
+        
+    # Get all files and folders in the current directory
+    all_items = os.listdir()
+    # Filter out the items to get only files
+    files = [item for item in all_items if os.path.isfile(item)]
+    # Print the name of each file
+    for file in files:
+        print(file)
 
 ### Main function ###
 def main():
