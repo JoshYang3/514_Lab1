@@ -1,6 +1,7 @@
 import socket
 import threading
 import os
+import random
 import file_utils  # Import the file_utils module
 from time import sleep
 
@@ -14,10 +15,10 @@ def connect_to_server(server_ip, server_port):
 
 # Used to register files with the server
 def register_files(client_socket, files, peer_port = 1111):
-    file_info = '|'.join(f'{filename}|{file_detail["size"]}' for filename, file_detail in files.items()) # Create a string of file info
-    message = f'Register Request|{len(files)}|{file_info}|{peer_port}' # Create the message to send to the server
-    client_socket.send(message.encode('utf-8'))                  # Send the message to the server
-    response = client_socket.recv(1024).decode('utf-8')          # The server will send an ACK message if the registration is successful
+    file_info = '|'.join(f'{filename}|{file_detail["size"]}' for filename, file_detail in files.items())
+    message = f'Register Request|{len(files)}|{peer_port}|{file_info}'
+    client_socket.send(message.encode('utf-8'))
+    response = client_socket.recv(1024).decode('utf-8')
     print(response, end='\n\n')
 
 # Used to request the list of files from the server
@@ -93,26 +94,30 @@ def start_peer_server(port=1111):
 
     server_socket.close()
 
+CHUNK_SIZE = 50 * 1024  # Define a size for the chunks 50 kB
 # Used to tell the server that what file chunks we have
 def get_files_in_current_directory():
     files_info = {}
     directory_path = os.path.dirname(os.path.abspath(__file__))
-    exclude_files = ['utils.py', 'file_utils.py', 'peer.py']    # Files to exclude from the file registry
+    exclude_files = ['utils.py', 'file_utils.py', 'peer.py']
 
-    for filename in os.listdir(directory_path):                 # Iterate through all files in the current directory
-        if filename in exclude_files:                           # Skip the excluded files
+    for filename in os.listdir(directory_path):
+        if filename in exclude_files:
             continue
 
         filepath = os.path.join(directory_path, filename)
         
         if os.path.isfile(filepath):
             file_size = os.path.getsize(filepath)
-            files_info[filename] = {                            # Store the file info in a dictionary
-                'path': filepath,                               # full path to the file
-                'size': file_size,                              # size of the file
+            chunks_count = file_size // CHUNK_SIZE + (1 if file_size % CHUNK_SIZE else 0)
+            files_info[filename] = {
+                'path': filepath,
+                'size': file_size,
+                'chunks_count': chunks_count
             }
 
     return files_info
+
 
 file_list = get_files_in_current_directory()                    # A dictionary to store file info and chunks
 
@@ -127,7 +132,7 @@ def handle_peer_request(client_socket, client_addr):
             #print(f'Received: {request}\n\n')
 
             command, *args = request.split('|')                 # Split the request into command and arguments
-            CHUNK_SIZE = 4096  # Define a size for the chunks (e.g., 4KB)
+            #CHUNK_SIZE = 4096  # Define a size for the chunks (e.g., 4KB)
             if command == 'File Size Request':
                 request_file = args[0]
                 file_info = file_list.get(request_file)
@@ -138,16 +143,14 @@ def handle_peer_request(client_socket, client_addr):
                     client_socket.send(b'0')
             # In handle_peer_request:
             elif command == 'File Chunk Request':
-                request_file = args[0]
+                request_file, chunk_index = args
+                chunk_index = int(chunk_index)
                 file_info = file_list.get(request_file)
                 if file_info:
                     with open(file_info['path'], 'rb') as file:
-                        while True:
-                            file_data = file.read(CHUNK_SIZE)
-                            if not file_data:
-                                break
-                            send_chunk(client_socket, file_data)
-                    send_chunk(client_socket, b'')  # Indicate end of file data
+                        file.seek(chunk_index * CHUNK_SIZE)
+                        file_data = file.read(CHUNK_SIZE)
+                        send_chunk(client_socket, file_data)
                 else:
                     client_socket.send("File not found.".encode('utf-8'))  # Send an error message if the file isn't found            # Send empty chunk to indicate end of file
             
@@ -168,27 +171,62 @@ def request_file_size_from_peer(peer_ip, peer_port, file_name):
 
 
 # Used to download a file from a peer
-def download_file_from_peer(file_name, peer_ip, peer_port):
+'''def download_file_from_peer(file_name, peer_ip, peer_port, chunk_count):
     file_size = request_file_size_from_peer(peer_ip, peer_port, file_name)
     peer_socket = connect_to_server(peer_ip, peer_port)
-    message = f'File Chunk Request|{file_name}'
-    peer_socket.send(message.encode('utf-8'))
-    
     downloaded_size = 0
-    with open(file_name, 'wb') as f:
-        while True:
+
+    for i in range(chunk_count):
+        chunk_name = f"{file_name}.chunk{i + 1}"
+        register_chunk_with_server(peer_socket, chunk_name)
+        print(f"Requested chunk {i + 1} for {file_name} from {peer_ip}:{peer_port}")
+        with open(file_name, 'wb') as f:  # Just 'wb' since we're writing chunks in order
+            message = f'File Chunk Request|{file_name}|{i}'  # Request chunk by index
+            peer_socket.send(message.encode('utf-8'))
             chunk = receive_chunk(peer_socket)
             if not chunk:
                 break
             downloaded_size += len(chunk)
             progress = (downloaded_size / file_size) * 100
             print(f"Download Progress: {progress:.2f}%")
-            f.write(chunk)  
+            f.write(chunk)
+            sleep(30)
             
-            sleep(0.5)  # introduce a delay of 0.5 seconds between chunks
-            
-    print(f"Downloaded {file_name} from {peer_ip}:{peer_port}")
+    print(f"Downloaded {file_name} from {peer_ip}:{peer_port}\n")
+    peer_socket.close()'''
+def download_file_from_peer(file_name, peer_ip, peer_port, chunk_count, client_socket):
+    chunks_to_download = list(range(chunk_count))
+    random.shuffle(chunks_to_download)
+
+    for chunk in chunks_to_download:
+        print(f"Downloading chunk {chunk + 1} for {file_name} from {peer_ip}:{peer_port}")
+        download_chunk_from_peer(file_name, chunk, peer_ip, peer_port, client_socket)
+
+
+def download_chunk_from_peer(file_name, chunk_index, peer_ip, peer_port, client_socket):
+    peer_socket = connect_to_server(peer_ip, peer_port)
+    message = f'File Chunk Request|{file_name}|{chunk_index}'
+    peer_socket.send(message.encode('utf-8'))
+    chunk = receive_chunk(peer_socket)
+    if chunk:
+        # Append the chunk to the file.
+        with open(file_name, 'ab') as f:
+            f.write(chunk)
+
+        # Notify the server that we have this chunk now
+        notify_server_of_chunk(client_socket, file_name, chunk_index, len(chunk))
+    sleep(30)
     peer_socket.close()
+
+
+def notify_server_of_chunk(client_socket, file_name, chunk_index, chunk_size):
+    message = f'Chunk Notification|{file_name}|{chunk_index}|{chunk_size}'
+    client_socket.send(message.encode('utf-8'))
+    response = client_socket.recv(1024).decode('utf-8')
+    print(response)
+
+
+
 
 ### For user menu ###
 # Used to display the menu
@@ -225,7 +263,12 @@ def main():
         elif user_input == '3':
             peer_port = int(input("Enter the port of the peer to download from: "))
             file_name = input("Enter the name of the file to download: ")
-            download_file_from_peer(file_name, peer_ip, peer_port)
+            file_size = request_file_size_from_peer(peer_ip, peer_port, file_name)
+            chunk_count = file_size // CHUNK_SIZE
+            if file_size % CHUNK_SIZE:
+                chunk_count += 1
+            download_file_from_peer(file_name, peer_ip, peer_port, chunk_count, client_socket)
+            #download_file_from_peer(file_name, peer_ip, peer_port)
         
         elif user_input == '4':
             file_name = input("Enter the name of the file you want to locate: ")
