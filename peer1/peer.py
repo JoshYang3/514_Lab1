@@ -24,6 +24,7 @@ def register_files(client_socket, peer_port = 1111):
     client_socket.send(message.encode('utf-8'))                  # Send the message to the server
     response = client_socket.recv(1024).decode('utf-8')          # The server will send an ACK message if the registration is successful
     print(response, end='\n\n')
+    request_connected_peers(client_socket)
 
 # Used to request the list of files from the server
 def request_file_list(client_socket):
@@ -101,13 +102,6 @@ def start_peer_server(port=1111):
 # Used to tell the server that what file chunks we have
 def get_fileinfo(filename):
     files_info = {}
-    """directory_path = os.path.dirname(os.path.abspath(__file__))
-    exclude_files = ['utils.py', 'file_utils.py', 'peer.py']    # Files to exclude from the file registry
-
-    for filename in os.listdir(directory_path):                 # Iterate through all files in the current directory
-        if filename in exclude_files:                           # Skip the excluded files
-            continue
-    """
         
     if os.path.isfile(filename):
         file_size = os.path.getsize(filename)
@@ -223,19 +217,26 @@ def split_file_into_chunks(file_path, chunk_size=50*1024):
         
         print(f"File '{file_path}' has been split into {chunk_number} chunks and saved in folder '{dir_name}'.")
 
+### Request the peers that are connecting to server now ###
+def request_connected_peers(client_socket):
+    message = 'Connected Peers Request'                                # Create the message to send to the server
+    try:
+        client_socket.send(message.encode('utf-8'))
+        response = client_socket.recv(4096).decode('utf-8')  # increased buffer size just in case
+        print("Available Peers:")
+        for peers in response.split('|'):
+            print(f" - {peers}")
+        print()
+    except ConnectionResetError:                                 # Handle the case where the server closes the connection
+        print("Connection was reset. The server might have closed the connection\n\n.")
+        return
+    except BrokenPipeError:                                      # Handle the case where the server closes the connection
+        print("Broken pipe. The server might have closed the connection.\n\n")
+        return
+    
 
-    '''with open(file_path, 'rb') as file:
-        chunk = file.read(chunk_size)
-        chunk_number = 0
-        
-        while chunk:
-            with open(f"{file_path}_chunk_{chunk_number}", 'wb') as chunk_file:
-                chunk_file.write(chunk)
-            
-            chunk_number += 1
-            chunk = file.read(chunk_size)
-        
-        print(f"File '{file_path}' has been split into {chunk_number} chunks.")'''
+
+
 
 ### Print out all the file under current folder ###
 def print_out_file_in_current_folder():
