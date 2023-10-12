@@ -290,7 +290,44 @@ def print_out_file_in_current_folder():
     
     return file_name
     
+### Assemble Chunks ###
+def assemble_file_from_chunks(original_filename, total_size):
+    chunk_size = 50*1024
+    total_chunks = -(-total_size // chunk_size)  # Calculate the total number of chunks, equivalent to math.ceil(total_size / chunk_size)
     
+    # Check if all parts are present
+    parts = [f for f in os.listdir() if f.startswith(original_filename + '_chunk_')]
+    
+    part_cal = 0
+    for part in parts:
+        part_flag = 0
+        for part in parts:
+            if part == (original_filename + '_chunk_' + str(part_cal) ):
+                part_flag = 1
+        if  part_flag == 0:
+            print(f"Not all parts are available to assemble {original_filename}.")
+            return False           
+        part_cal = part_cal + 1    
+    if part_cal != total_chunks:
+        print(f"Not all parts are available to assemble {original_filename}.")
+        return False
+    
+    # Sorting parts to ensure they are in the correct order
+    parts.sort(key=lambda x: int(x.split('_chunk_')[1]))
+
+    # If all parts are present, assemble the original file
+    with open(original_filename, 'wb') as f:
+        for part in parts:
+            with open(part, 'rb') as p:
+                f.write(p.read())
+            
+    print(f"{original_filename} has been assembled successfully.")
+    return True
+
+
+
+
+
 
 ###
 ### Main function ###
