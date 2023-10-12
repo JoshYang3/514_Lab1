@@ -438,11 +438,11 @@ def downloading_file(client_socket):
     print(file_info)
     
     file_chunks = request_file_chunk(file_name, client_socket)
-    downloading_chunks_online(file_name, file_chunks)
+    downloading_chunks_online(file_name, file_chunks, client_socket)
     assemble_file_from_chunks(file_name, file_size)
 
 ### download all the chunk online in the file ###
-def downloading_chunks_online(file_name, file_chunks):
+def downloading_chunks_online(file_name, file_chunks, client_socket):
     
     max_index = 0
     for chunk in file_chunks:
@@ -451,17 +451,18 @@ def downloading_chunks_online(file_name, file_chunks):
         if int(index) > max_index:
             max_index = int(index)
 
+    connected_peers = request_connected_peers(client_socket)
+
     index = 0
     for index in range(0,max_index+1):
         for chunk in file_chunks: 
             file_name = chunk.split(" ")[0]
             peer_port = chunk.split("peers: ")[1]
-            print("_chunk_"+str(index))
-            print(file_name)
+            
             if ("_chunk_"+str(index)) in file_name:
-                download_file_from_peer(file_name, peer_port.split(":")[0], int(peer_port.split(":")[1]) )
-                continue
-        print(index)
+                if peer_port.split(":")[1] in connected_peers:
+                    download_file_from_peer(file_name, peer_port.split(":")[0], int(peer_port.split(":")[1]) )
+                    continue
 
 ### Print out all the file under current folder ###
 def print_out_file_in_current_folder():

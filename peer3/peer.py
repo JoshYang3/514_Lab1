@@ -2,10 +2,7 @@ import socket
 import threading
 import os
 import random
-<<<<<<< HEAD
-=======
 import re
->>>>>>> cbcaf33401df1ea88caaafc21e39b46b5d79b7cf
 import file_utils  # Import the file_utils module
 from time import sleep
 
@@ -45,10 +42,6 @@ def register_files(client_socket, peer_port=current_peer_port):
     connected_peers = request_connected_peers(client_socket)
     split_info = file_info.split('|')
     file_names = split_info[::2]
-<<<<<<< HEAD
-    for peer_port in connected_peers:
-        for file_name in file_names:
-=======
 
     chunk_files = [item for item in file_names if '_chunk_' in item] # Extract the chunk file names
     
@@ -57,7 +50,6 @@ def register_files(client_socket, peer_port=current_peer_port):
     for peer_port in connected_peers:
         selected_files = random.sample(chunk_files, num_files_to_select) # Randomly select 25% of the chunks to send to each peer
         for file_name in selected_files:
->>>>>>> cbcaf33401df1ea88caaafc21e39b46b5d79b7cf
             send_chunks_to_peer(file_name, int(peer_port))
 
 def send_chunks_to_peer(file_name, peer_port):
@@ -90,7 +82,6 @@ def send_chunks_to_peer(file_name, peer_port):
     except Exception as e:
         print(f"Error sending chunks to peer on port {peer_port}: {e}")
 
-<<<<<<< HEAD
 ### Used to list and select file to download ###
 def list_and_select_file_to_download(client_socket):
     message = 'File List Request'                                # Create the message to send to the server
@@ -150,8 +141,6 @@ def request_file_chunk(request_file_name, client_socket):
         print("Broken pipe. The server might have closed the connection.\n\n")
         return
     
-=======
->>>>>>> cbcaf33401df1ea88caaafc21e39b46b5d79b7cf
 
 # Used to request the list of files from the server
 def request_file_list(client_socket):
@@ -449,11 +438,11 @@ def downloading_file(client_socket):
     print(file_info)
     
     file_chunks = request_file_chunk(file_name, client_socket)
-    downloading_chunks_online(file_name, file_chunks)
+    downloading_chunks_online(file_name, file_chunks, client_socket)
     assemble_file_from_chunks(file_name, file_size)
 
 ### download all the chunk online in the file ###
-def downloading_chunks_online(file_name, file_chunks):
+def downloading_chunks_online(file_name, file_chunks, client_socket):
     
     max_index = 0
     for chunk in file_chunks:
@@ -462,17 +451,18 @@ def downloading_chunks_online(file_name, file_chunks):
         if int(index) > max_index:
             max_index = int(index)
 
+    connected_peers = request_connected_peers(client_socket)
+
     index = 0
     for index in range(0,max_index+1):
         for chunk in file_chunks: 
             file_name = chunk.split(" ")[0]
             peer_port = chunk.split("peers: ")[1]
-            print("_chunk_"+str(index))
-            print(file_name)
+            
             if ("_chunk_"+str(index)) in file_name:
-                download_file_from_peer(file_name, peer_port.split(":")[0], int(peer_port.split(":")[1]) )
-                continue
-        print(index)
+                if peer_port.split(":")[1] in connected_peers:
+                    download_file_from_peer(file_name, peer_port.split(":")[0], int(peer_port.split(":")[1]) )
+                    continue
 
 ### Print out all the file under current folder ###
 def print_out_file_in_current_folder():
