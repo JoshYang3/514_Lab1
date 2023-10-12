@@ -456,7 +456,7 @@ def downloading_file(client_socket):
     print(file_info)
     
     file_chunks = request_file_chunk(file_name, client_socket)
-    downloading_chunks_online(file_name, file_chunks, client_socket)
+    downloading_chunks_online(file_name, file_chunks)
     assemble_file_from_chunks(file_name, file_size)
 
 ### download all the chunk online in the file ###
