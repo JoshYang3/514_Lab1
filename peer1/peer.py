@@ -84,6 +84,8 @@ def send_chunks_to_peer(file_name, peer_port):
     if not peer_port or not str(peer_port).isdigit():
         print(f"Invalid port number: {peer_port}")
         return  # Skip to the next iteration
+    if peer_port == current_peer_port:
+        return
     try:
         # Create a new socket to connect to the peer
         peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -100,6 +102,7 @@ def send_chunks_to_peer(file_name, peer_port):
             #random_chunk_path = random.choice(chunk_file_paths)  # Randomly select a chunk file path
             with open(file_name, 'rb') as chunk_file:
                 file_data = chunk_file.read()
+                #print(file_data)
                 #chunk = chunk_file.read()  # Read the entire chunk file
                 send_chunk(peer_socket, file_data)
             send_chunk(peer_socket, b'EOF')
@@ -386,10 +389,6 @@ def print_out_file_in_current_folder():
     
     return file_name
     
-### Assemble Chunks ###
-def assemble_file_from_chunks(original_filename, total_size):
-    chunk_size = 50*1024
-    total_chunks = -(-total_size // chunk_size)  # Calculate the total number of chunks, equivalent to math.ceil(total_size / chunk_size)
     
 ###
 ### Main function ###
