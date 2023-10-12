@@ -4,16 +4,29 @@ import os
 import file_utils  # Import the file_utils module
 from time import sleep
 
+current_peer_port = 1111
 
 ### For connecting to the server ###
 # Used to connect to the server
 def connect_to_server(server_ip, server_port):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # Create a socket object
     client_socket.connect((server_ip, server_port))              # Connect to the server
-    return client_socket                                         # Return the socket object
+    message = 'Connected Peers Request'       
+
+    return client_socket                                        # Return the socket object
+
+
+### sent current_peer_port to server ###
+def current_peer_port_to_server(client_socket, peer_port = current_peer_port):
+    
+    message = f'Peer Register|{current_peer_port}' # Create the message to send to the server
+    client_socket.send(message.encode('utf-8'))                  # Send the message to the server
+    response = client_socket.recv(1024).decode('utf-8')          # The server will send an ACK message if the registration is successful
+    print(response, end='\n\n')
+    request_connected_peers(client_socket)
 
 # Used to register files with the server
-def register_files(client_socket, peer_port = 1111):
+def register_files(client_socket, peer_port = current_peer_port):
     file_name = print_out_file_in_current_folder()
     files = get_fileinfo(file_name)
     if file_name == "":
@@ -24,6 +37,7 @@ def register_files(client_socket, peer_port = 1111):
     client_socket.send(message.encode('utf-8'))                  # Send the message to the server
     response = client_socket.recv(1024).decode('utf-8')          # The server will send an ACK message if the registration is successful
     print(response, end='\n\n')
+    request_connected_peers(client_socket)
 
 # Used to request the list of files from the server
 def request_file_list(client_socket):
@@ -82,7 +96,7 @@ def request_file_locations(client_socket, file_name):
 ### For other peers connecting ###
 running = True
 # Used to start the peer's server functionality in a separate thread
-def start_peer_server(port=1111):
+def start_peer_server(port=current_peer_port):
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind(('0.0.0.0', port))
     server_socket.listen(5)
@@ -101,13 +115,6 @@ def start_peer_server(port=1111):
 # Used to tell the server that what file chunks we have
 def get_fileinfo(filename):
     files_info = {}
-    """directory_path = os.path.dirname(os.path.abspath(__file__))
-    exclude_files = ['utils.py', 'file_utils.py', 'peer.py']    # Files to exclude from the file registry
-
-    for filename in os.listdir(directory_path):                 # Iterate through all files in the current directory
-        if filename in exclude_files:                           # Skip the excluded files
-            continue
-    """
         
     if os.path.isfile(filename):
         file_size = os.path.getsize(filename)
@@ -223,19 +230,26 @@ def split_file_into_chunks(file_path, chunk_size=50*1024):
         
         print(f"File '{file_path}' has been split into {chunk_number} chunks and saved in folder '{dir_name}'.")
 
+### Request the peers that are connecting to server now ###
+def request_connected_peers(client_socket):
+    message = 'Connected Peers Request'                                # Create the message to send to the server
+    try:
+        client_socket.send(message.encode('utf-8'))
+        response = client_socket.recv(4096).decode('utf-8')  # increased buffer size just in case
+        print("Available Peers:")
+        for peers in response.split('|'):
+            print(f" - {peers}")
+        print()
+    except ConnectionResetError:                                 # Handle the case where the server closes the connection
+        print("Connection was reset. The server might have closed the connection\n\n.")
+        return
+    except BrokenPipeError:                                      # Handle the case where the server closes the connection
+        print("Broken pipe. The server might have closed the connection.\n\n")
+        return
+    
 
-    '''with open(file_path, 'rb') as file:
-        chunk = file.read(chunk_size)
-        chunk_number = 0
-        
-        while chunk:
-            with open(f"{file_path}_chunk_{chunk_number}", 'wb') as chunk_file:
-                chunk_file.write(chunk)
-            
-            chunk_number += 1
-            chunk = file.read(chunk_size)
-        
-        print(f"File '{file_path}' has been split into {chunk_number} chunks.")'''
+
+
 
 ### Print out all the file under current folder ###
 def print_out_file_in_current_folder():
@@ -281,15 +295,22 @@ def main():
     peer_ip = '127.0.0.1'
     client_socket.connect((server_ip, server_port))
 
+    
     # Start the peer's server functionality in a separate thread
     threading.Thread(target=start_peer_server).start()
     
+    flag_peer_port = 0
     while True:
+        if flag_peer_port == 0:
+            current_peer_port_to_server(client_socket, peer_port = current_peer_port)
+            
+            flag_peer_port = 1
+
         display_menu()                                                  # Display the menu at the start of each loop iteration
         user_input = input("Enter the number of your choice: ")
 
         if user_input == '1':
-            register_files(client_socket, peer_port=1111)
+            register_files(client_socket, peer_port=current_peer_port)
         
         elif user_input == '2':
             request_file_list(client_socket)

@@ -3,6 +3,9 @@
 import socket
 import threading
 
+# Used to store the addresses of all connected peers
+connected_peers = []
+
 # Used to start the peer's server functionality
 def start_server(port=9999):
     print("Starting server...")
@@ -25,8 +28,13 @@ def handle_client(client_socket, client_addr):
     try:
         while True:
             request = client_socket.recv(1024).decode('utf-8')                  # Receive the request from the client
-            if not request:                                                     # client might have disconnected
+            if not request:
                 print(f"Client {client_addr} has disconnected.")
+                for peer in connected_peers:
+                    if(peer['addr'] == client_addr):
+                        connected_peers.remove(peer)
+                for i in connected_peers:
+                    print(i)
                 break
             print(f'Received: {request}')
 
@@ -48,7 +56,7 @@ def handle_client(client_socket, client_addr):
                     peer_info = (peer_ip, peer_port)
                     if peer_info not in file_registry[file_name]['peers']:
                         file_registry[file_name]['peers'].append(peer_info)     # Store the file info in a dictionary
-                client_socket.send(b'ACK')
+                client_socket.send(b'File Registed')
             elif command == 'File List Request':
                 if(file_registry == {}):                                        # If the file list is empty
                     client_socket.send('File registry is empty'.encode('utf-8'))
@@ -66,8 +74,25 @@ def handle_client(client_socket, client_addr):
                 else:
                     client_socket.send('File not found.\n'.encode('utf-8'))
             elif command == 'Disconnect':
+                for peer in connected_peers:
+                    if(peer['addr'] == client_addr):
+                        connected_peers.remove(peer)
+                for i in connected_peers:
+                    print(i)
                 print(f"Received disconnect command from client {client_addr}.")
                 break  # Exit the loop
+            elif command == 'Connected Peers Request':
+                peers_list = '|'.join([f'{peer["current_peer_port"]}' for peer in connected_peers])
+                client_socket.send(peers_list.encode('utf-8'))
+            elif command == 'Peer Register':
+                current_peer_port = args[-1]
+                print(f"current_peer_port: {current_peer_port}")
+                connected_peers.append({'current_peer_port':current_peer_port, 'addr': client_addr})  # Add the connected peer to the set
+                for i in connected_peers:
+                    print(i)
+                client_socket.send(b'Peer Port Registered')
+
+
     except Exception as e:
         print(f"Error occurred with client {client_addr}: {e}")
     finally:
