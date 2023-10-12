@@ -2,6 +2,7 @@ import socket
 import threading
 import os
 import random
+import re
 import file_utils  # Import the file_utils module
 from time import sleep
 
@@ -39,14 +40,24 @@ def register_files(client_socket, peer_port=current_peer_port):
     response = client_socket.recv(1024).decode('utf-8')
     print(response, end='\n\n')
     connected_peers = request_connected_peers(client_socket)
+    split_info = file_info.split('|')
+    file_names = split_info[::2]
+
+    chunk_files = [item for item in file_names if '_chunk_' in item] # Extract the chunk file names
+    
+    num_files_to_select = len(file_names) // 4 
+
     for peer_port in connected_peers:
-        # Ensure peer_port is an integer before passing it to send_chunks_to_peer
-        send_chunks_to_peer(file_name, int(peer_port))
+        selected_files = random.sample(chunk_files, num_files_to_select) # Randomly select 25% of the chunks to send to each peer
+        for file_name in selected_files:
+            send_chunks_to_peer(file_name, int(peer_port))
 
 def send_chunks_to_peer(file_name, peer_port):
     if not peer_port or not str(peer_port).isdigit():
         print(f"Invalid port number: {peer_port}")
         return  # Skip to the next iteration
+    if peer_port == current_peer_port:
+        return
     try:
         # Create a new socket to connect to the peer
         peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -62,7 +73,8 @@ def send_chunks_to_peer(file_name, peer_port):
         if response == 'Accept Chunk':
             #random_chunk_path = random.choice(chunk_file_paths)  # Randomly select a chunk file path
             with open(file_name, 'rb') as chunk_file:
-                file_data = chunk_file.read(CHUNK_SIZE)
+                file_data = chunk_file.read()
+                #print(file_data)
                 #chunk = chunk_file.read()  # Read the entire chunk file
                 send_chunk(peer_socket, file_data)
             send_chunk(peer_socket, b'EOF')
@@ -180,8 +192,7 @@ def handle_peer_request(client_socket, client_addr):
                 client_socket.send("Invalid request: No arguments provided.".encode('utf-8'))
                 continue
 
-            request_file = args[0]
-            file_path = os.path.join(os.path.dirname(__file__), request_file)
+            
 
             if command == 'File Size Request':
                 request_file = args[0]
@@ -202,7 +213,7 @@ def handle_peer_request(client_socket, client_addr):
                 if not os.path.isfile(file_path):
                     client_socket.send("File not found.".encode('utf-8'))
                     continue  # Skip to the next iteration of the loop
-                
+
                 with open(file_path, 'rb') as file:
                     while True:
                         file_data = file.read(CHUNK_SIZE)

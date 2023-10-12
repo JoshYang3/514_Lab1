@@ -1,11 +1,15 @@
 import socket
 import threading
 import os
+import random
+import re
 import file_utils  # Import the file_utils module
 from time import sleep
 
 current_peer_port = 3333
-
+server_ip = '127.0.0.1'
+server_port = 9999
+running = True
 ### For connecting to the server ###
 # Used to connect to the server
 def connect_to_server(server_ip, server_port):
@@ -35,7 +39,49 @@ def register_files(client_socket, peer_port=current_peer_port):
     client_socket.send(message.encode('utf-8'))
     response = client_socket.recv(1024).decode('utf-8')
     print(response, end='\n\n')
-    request_connected_peers(client_socket)
+    connected_peers = request_connected_peers(client_socket)
+    split_info = file_info.split('|')
+    file_names = split_info[::2]
+
+    chunk_files = [item for item in file_names if '_chunk_' in item] # Extract the chunk file names
+    
+    num_files_to_select = len(file_names) // 4 
+
+    for peer_port in connected_peers:
+        selected_files = random.sample(chunk_files, num_files_to_select) # Randomly select 25% of the chunks to send to each peer
+        for file_name in selected_files:
+            send_chunks_to_peer(file_name, int(peer_port))
+
+def send_chunks_to_peer(file_name, peer_port):
+    if not peer_port or not str(peer_port).isdigit():
+        print(f"Invalid port number: {peer_port}")
+        return  # Skip to the next iteration
+    if peer_port == current_peer_port:
+        return
+    try:
+        # Create a new socket to connect to the peer
+        peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        peer_socket.connect(('127.0.0.1', int(peer_port)))  # Assuming all peers are on the same machine
+        
+        # Notify the peer about the incoming file chunks
+        message = f'File Chunk Offer|{file_name}'
+        peer_socket.send(message.encode('utf-8'))
+        CHUNK_SIZE = 4096
+        # Check if the peer is interested in receiving the chunks
+        response = peer_socket.recv(1024).decode('utf-8')
+        print(response)
+        if response == 'Accept Chunk':
+            #random_chunk_path = random.choice(chunk_file_paths)  # Randomly select a chunk file path
+            with open(file_name, 'rb') as chunk_file:
+                file_data = chunk_file.read()
+                #print(file_data)
+                #chunk = chunk_file.read()  # Read the entire chunk file
+                send_chunk(peer_socket, file_data)
+            send_chunk(peer_socket, b'EOF')
+        peer_socket.close()
+    except Exception as e:
+        print(f"Error sending chunks to peer on port {peer_port}: {e}")
+
 
 # Used to request the list of files from the server
 def request_file_list(client_socket):
@@ -92,7 +138,6 @@ def request_file_locations(client_socket, file_name):
     return peers_ports                                          # Assume the response is a list of IPs and ports.
 
 ### For other peers connecting ###
-running = True
 # Used to start the peer's server functionality in a separate thread
 def start_peer_server(port=current_peer_port):
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -143,24 +188,32 @@ def handle_peer_request(client_socket, client_addr):
 
             command, *args = request.split('|')
             CHUNK_SIZE = 4096
-
             if not args:  # Check if args list is empty
                 client_socket.send("Invalid request: No arguments provided.".encode('utf-8'))
                 continue
 
-            request_file = args[0]
-            file_path = os.path.join(os.path.dirname(__file__), request_file)
-
-            if not os.path.isfile(file_path):
-                client_socket.send("File not found.".encode('utf-8'))
-                continue  # Skip to the next iteration of the loop
+            
 
             if command == 'File Size Request':
-                file_size = os.path.getsize(file_path)
-                client_socket.send(str(file_size).encode('utf-8'))
+                request_file = args[0]
+                file_path = os.path.join(os.path.dirname(__file__), request_file)
+
+                if not os.path.isfile(file_path):
+                    client_socket.send("File not found.".encode('utf-8'))
+                    continue  # Skip to the next iteration of the loop
+                else:
+                    file_size = os.path.getsize(file_path)
+                    client_socket.send(str(file_size).encode('utf-8'))
                 #print(f"Sent file size: {file_size} to {client_addr}")
 
             elif command == 'File Chunk Request':
+                request_file = args[0]
+                file_path = os.path.join(os.path.dirname(__file__), request_file)
+
+                if not os.path.isfile(file_path):
+                    client_socket.send("File not found.".encode('utf-8'))
+                    continue  # Skip to the next iteration of the loop
+
                 with open(file_path, 'rb') as file:
                     while True:
                         file_data = file.read(CHUNK_SIZE)
@@ -168,6 +221,18 @@ def handle_peer_request(client_socket, client_addr):
                             break  # End of file
                         send_chunk(client_socket, file_data)
                 send_chunk(client_socket, b'EOF')  # Signal end of file
+
+            elif command == 'File Chunk Offer':
+                file_name = args[0]
+                client_socket.send(b'Accept Chunk')  # Indicate willingness to accept the chunk
+                with open(f'{file_name}', 'wb') as f:
+                    while True:
+                        chunk = receive_chunk(client_socket)  # Assume receive_chunk is defined elsewhere in your code
+                        if chunk == b'EOF':
+                            break  # End of chunk
+                        f.write(chunk)
+                client_socket.send("Chunk received successfully.".encode('utf-8'))
+                register_chunk_with_server(file_name, current_peer_port)
 
     except Exception as e:
         print(f"Error handling peer request: {e}\n\n")
@@ -186,8 +251,6 @@ def request_file_size_from_peer(peer_ip, peer_port, file_name):
     if not file_size_str.isdigit():
         raise ValueError(f"Received invalid file size: {file_size_str}")
     return int(file_size_str)
-
-
 
 # Used to download a file from a peer
 def download_file_from_peer(file_name, peer_ip, peer_port):
@@ -210,7 +273,14 @@ def download_file_from_peer(file_name, peer_ip, peer_port):
             sleep(0.5)  # introduce a delay of 0.5 seconds between chunks
             
     print(f"Downloaded {file_name} from {peer_ip}:{peer_port}")
+    register_chunk_with_server(file_name, current_peer_port)
     peer_socket.close()
+
+def register_chunk_with_server(file_name, peer_port):
+    message = f'Register Chunk|{file_name}|{peer_port}'
+    client_socket = connect_to_server(server_ip, server_port)
+    client_socket.send(message.encode('utf-8'))
+    client_socket.close()
 
 ### For user menu ###
 # Used to display the menu
@@ -252,6 +322,7 @@ def request_connected_peers(client_socket):
         for peers in response.split('|'):
             print(f" - {peers}")
         print()
+        return response.split('|')
     except ConnectionResetError:                                 # Handle the case where the server closes the connection
         print("Connection was reset. The server might have closed the connection\n\n.")
         return
@@ -291,15 +362,14 @@ def print_out_file_in_current_folder():
     return file_name
     
     
-
 ###
 ### Main function ###
 def main():
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)   # Create a socket object
 
     # Connect to the server
-    server_ip = '127.0.0.1'
-    server_port = 9999
+    #server_ip = '127.0.0.1'
+    #server_port = 9999
     peer_ip = '127.0.0.1'
     client_socket.connect((server_ip, server_port))
 
