@@ -121,4 +121,3 @@ def handle_client(client_socket, client_addr):
 
 if __name__ == "__main__":
     start_server()
-

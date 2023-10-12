@@ -456,7 +456,7 @@ def downloading_file(client_socket):
     print(file_info)
     
     file_chunks = request_file_chunk(file_name, client_socket)
-    downloading_chunks_online(file_name, file_chunks)
+    downloading_chunks_online(file_name, file_chunks, client_socket)
     assemble_file_from_chunks(file_name, file_size)
 
 ### download all the chunk online in the file ###
@@ -500,6 +500,8 @@ def downloading_chunks_online(file_name, file_chunks):
         index = file_name.split("_chunk_")[1]
         if int(index) > max_index:
             max_index = int(index)
+
+    connected_peers = request_connected_peers(client_socket)
 
     index = 0
     for index in range(0,max_index+1):
