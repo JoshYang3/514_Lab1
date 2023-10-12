@@ -45,7 +45,42 @@ def register_files(client_socket, peer_port=current_peer_port):
         for file_name in file_names:
             send_chunks_to_peer(file_name, int(peer_port))
 
+'''def send_chunk(peer_socket, chunk):
+    try:
+        peer_socket.sendall(chunk)
+        print(f"Chunk of size {len(chunk)} sent.")
+    except Exception as e:
+        print(f"Error sending chunk: {e}")
+'''
 def send_chunks_to_peer(file_name, peer_port):
+    if not peer_port or not str(peer_port).isdigit():
+        print(f"Invalid port number: {peer_port}")
+        return 
+
+    try:
+        peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        peer_socket.connect(('127.0.0.1', int(peer_port))) 
+        
+        message = f'File Chunk Offer|{file_name}'
+        peer_socket.send(message.encode('utf-8'))
+        CHUNK_SIZE = 4096 
+
+        response = peer_socket.recv(1024).decode('utf-8')
+        print(response)
+        if response == 'Accept Chunk':
+            with open(file_name, 'rb') as file:
+                while True:
+                    file_chunk = file.read(CHUNK_SIZE)
+                    if len(file_chunk) == 0:
+                        break  # End of file
+                    send_chunk(peer_socket, file_chunk)
+            send_chunk(peer_socket, b'EOF')
+        peer_socket.close()
+
+    except Exception as e:
+        print(f"Error sending chunks to peer on port {peer_port}: {e}")
+
+'''def send_chunks_to_peer(file_name, peer_port):
     if not peer_port or not str(peer_port).isdigit():
         print(f"Invalid port number: {peer_port}")
         return  # Skip to the next iteration
@@ -71,7 +106,7 @@ def send_chunks_to_peer(file_name, peer_port):
         peer_socket.close()
     except Exception as e:
         print(f"Error sending chunks to peer on port {peer_port}: {e}")
-
+'''
 
 # Used to request the list of files from the server
 def request_file_list(client_socket):
@@ -374,7 +409,6 @@ def main():
     while True:
         if flag_peer_port == 0:
             current_peer_port_to_server(client_socket, peer_port = current_peer_port)
-            
             flag_peer_port = 1
 
         display_menu()                                                  # Display the menu at the start of each loop iteration
