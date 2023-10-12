@@ -2,6 +2,10 @@ import socket
 import threading
 import os
 import random
+<<<<<<< HEAD
+=======
+import re
+>>>>>>> cbcaf33401df1ea88caaafc21e39b46b5d79b7cf
 import file_utils  # Import the file_utils module
 from time import sleep
 
@@ -41,8 +45,19 @@ def register_files(client_socket, peer_port=current_peer_port):
     connected_peers = request_connected_peers(client_socket)
     split_info = file_info.split('|')
     file_names = split_info[::2]
+<<<<<<< HEAD
     for peer_port in connected_peers:
         for file_name in file_names:
+=======
+
+    chunk_files = [item for item in file_names if '_chunk_' in item] # Extract the chunk file names
+    
+    num_files_to_select = len(file_names) // 4 
+
+    for peer_port in connected_peers:
+        selected_files = random.sample(chunk_files, num_files_to_select) # Randomly select 25% of the chunks to send to each peer
+        for file_name in selected_files:
+>>>>>>> cbcaf33401df1ea88caaafc21e39b46b5d79b7cf
             send_chunks_to_peer(file_name, int(peer_port))
 
 def send_chunks_to_peer(file_name, peer_port):
@@ -75,6 +90,7 @@ def send_chunks_to_peer(file_name, peer_port):
     except Exception as e:
         print(f"Error sending chunks to peer on port {peer_port}: {e}")
 
+<<<<<<< HEAD
 ### Used to list and select file to download ###
 def list_and_select_file_to_download(client_socket):
     message = 'File List Request'                                # Create the message to send to the server
@@ -134,6 +150,8 @@ def request_file_chunk(request_file_name, client_socket):
         print("Broken pipe. The server might have closed the connection.\n\n")
         return
     
+=======
+>>>>>>> cbcaf33401df1ea88caaafc21e39b46b5d79b7cf
 
 # Used to request the list of files from the server
 def request_file_list(client_socket):
