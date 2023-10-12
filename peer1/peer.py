@@ -32,6 +32,7 @@ def register_files(client_socket, peer_port=current_peer_port):
         print("No such file!")
         return
     chunk_file_paths = split_file_into_chunks(file_name)  # Split the file into chunks
+    sleep(10)
     files = get_fileinfo(file_name, chunk_file_paths)  # Get file info for all chunks and the complete file
     file_info = '|'.join(f'{filename}|{file_detail["size"]}' for filename, file_detail in files.items())
     message = f'Register Request|{len(files)}|{file_info}|{peer_port}'
@@ -351,10 +352,6 @@ def print_out_file_in_current_folder():
     
     return file_name
     
-### Assemble Chunks ###
-def assemble_file_from_chunks(original_filename, total_size):
-    chunk_size = 50*1024
-    total_chunks = -(-total_size // chunk_size)  # Calculate the total number of chunks, equivalent to math.ceil(total_size / chunk_size)
     
 ###
 ### Main function ###
