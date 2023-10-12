@@ -157,7 +157,7 @@ def handle_peer_request(client_socket, client_addr):
                             if not file_data:
                                 break
                             send_chunk(client_socket, file_data)
-                    send_chunk(client_socket, b'')  # Indicate end of file data
+                    send_chunk(client_socket, b'EOF')  # Signal end of file
                 else:
                     client_socket.send("File not found.".encode('utf-8'))  # Send an error message if the file isn't found            # Send empty chunk to indicate end of file
             
@@ -188,7 +188,7 @@ def download_file_from_peer(file_name, peer_ip, peer_port):
     with open(file_name, 'wb') as f:
         while True:
             chunk = receive_chunk(peer_socket)
-            if not chunk:
+            if chunk == b'EOF':
                 break
             downloaded_size += len(chunk)
             progress = (downloaded_size / file_size) * 100
