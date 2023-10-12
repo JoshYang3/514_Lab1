@@ -299,7 +299,8 @@ def display_menu():
     print("2. Request file list")
     print("3. Download file from peer")
     print("4. Request file locations from server")
-    print("5. Exit")
+    print("5. Downloading file")
+    print("6. Exit")
 
 def compute_hash(file_path):
     sha256 = hashlib.sha256()
@@ -348,6 +349,79 @@ def request_connected_peers(client_socket):
     except BrokenPipeError:                                      # Handle the case where the server closes the connection
         print("Broken pipe. The server might have closed the connection.\n\n")
         return
+### Assemble Chunks ###
+def assemble_file_from_chunks(original_filename, total_size):
+    chunk_size = 50*1024
+    total_chunks = -(-total_size // chunk_size)  # Calculate the total number of chunks, equivalent to math.ceil(total_size / chunk_size)
+
+    # Check if all parts are present
+    parts = [f for f in os.listdir() if f.startswith(original_filename + '_chunk_')]
+
+    part_cal = 0
+    for part in parts:
+        part_flag = 0
+        for part in parts:
+            if part == (original_filename + '_chunk_' + str(part_cal) ):
+                part_flag = 1
+        if  part_flag == 0:
+            print(f"Not all parts are available to assemble {original_filename}.")
+            return False           
+        part_cal = part_cal + 1    
+    if part_cal != total_chunks:
+        print(f"Not all parts are available to assemble {original_filename}.")
+        return False
+
+    # Sorting parts to ensure they are in the correct order
+    parts.sort(key=lambda x: int(x.split('_chunk_')[1]))
+
+    # If all parts are present, assemble the original file
+    with open(original_filename, 'wb') as f:
+        for part in parts:
+            with open(part, 'rb') as p:
+                f.write(p.read())
+
+    print(f"{original_filename} has been assembled successfully.")
+    return True
+
+### Downloading file ###
+def downloading_file(client_socket):
+    #get file info and file name which selected by user 
+    file_info = list_and_select_file_to_download(client_socket)
+    file_name = file_info.split(" ")[0]
+    file_size = file_info.split("size: ")[1]
+    file_size = int(file_size.split(")")[0])
+
+    #Invalid input
+    if file_info == "":
+        print("Invalid input!")
+        return
+    print(file_info)
+    
+    file_chunks = request_file_chunk(file_name, client_socket)
+    downloading_chunks_online(file_name, file_chunks)
+    assemble_file_from_chunks(file_name, file_size)
+
+### download all the chunk online in the file ###
+def downloading_chunks_online(file_name, file_chunks):
+    
+    max_index = 0
+    for chunk in file_chunks:
+        file_name = chunk.split(" ")[0]
+        index = file_name.split("_chunk_")[1]
+        if int(index) > max_index:
+            max_index = int(index)
+
+    index = 0
+    for index in range(0,max_index+1):
+        for chunk in file_chunks: 
+            file_name = chunk.split(" ")[0]
+            peer_port = chunk.split("peers: ")[1]
+            print("_chunk_"+str(index))
+            print(file_name)
+            if ("_chunk_"+str(index)) in file_name:
+                download_file_from_peer(file_name, peer_port.split(":")[0], int(peer_port.split(":")[1]) )
+                continue
+        print(index)
 
 ### Print out all the file under current folder ###
 def print_out_file_in_current_folder():
@@ -419,8 +493,11 @@ def main():
         elif user_input == '4':
             file_name = input("Enter the name of the file you want to locate: ")
             request_file_locations(client_socket, file_name)
-        
+
         elif user_input == '5':
+            downloading_file(client_socket)
+
+        elif user_input == '6':
             print("Disconnecting...")
             global running
             running = False  # Signal the peer server to stop

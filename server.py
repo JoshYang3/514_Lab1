@@ -22,7 +22,8 @@ def start_server(port=9999):
         client_handler.start()
         
 
-file_registry = {}                                                              # A dictionary to store all the files and their info
+file_registry = {}        
+
 
 def handle_client(client_socket, client_addr):
     try:
@@ -103,9 +104,9 @@ def handle_client(client_socket, client_addr):
                 # Create an entry if it doesn't exist
                 if chunk_name not in file_registry:
                     print("Chunk not found\n")
-
+                
                 # Append the peer (IP and port) to the list of peers, if it's not already there
-                if peer_info not in file_registry[chunk_name]['peers']:
+                if peer_info not in file_registry[chunk_name]['peers'] and peer_info not in chunk_registry[chunk_name]['peers']:
                     file_registry[chunk_name]['peers'].append(peer_info)
                 client_socket.send(b'Chunk Registered')
 
