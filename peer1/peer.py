@@ -249,6 +249,64 @@ def handle_peer_request(client_socket, client_addr):
     finally:
         client_socket.close()
 
+### Used to list and select file to download ###
+def list_and_select_file_to_download(client_socket):
+    message = 'File List Request'                                # Create the message to send to the server
+    try:
+        client_socket.send(message.encode('utf-8'))
+        response = client_socket.recv(4096).decode('utf-8')  # increased buffer size just in case
+        print("Available files:")
+        for file_info in response.split('|'):
+            file_name = file_info.split(" ")[0]
+
+            index = 1;
+            if not "_chunk_"in file_name:
+                print(str(index) +"-"+ file_name)
+                index = index+1
+
+
+        user_input = input("Choose the file to download:(only enter the index of file)")
+
+        index = 1
+        valid_userinput = 0
+        for file_info in response.split('|'):
+            file_name = file_info.split(" ")[0]
+            if not "_chunk_"in file_name:
+                if str(index) == user_input:
+                    valid_userinput = 1
+                    print("Select "+file_name+" to download!")
+                    return file_info
+                index = index+1
+        if valid_userinput == 0:
+            return ""
+    except ConnectionResetError:                                 # Handle the case where the server closes the connection
+        print("Connection was reset. The server might have closed the connection\n\n.")
+        return
+    except BrokenPipeError:                                      # Handle the case where the server closes the connection
+        print("Broken pipe. The server might have closed the connection.\n\n")
+        return
+
+### Used to get chunk list for a file ###
+def request_file_chunk(request_file_name, client_socket):
+    message = 'File List Request'                                # Create the message to send to the server
+    try:
+        file_chunk = []
+        client_socket.send(message.encode('utf-8'))
+        response = client_socket.recv(4096).decode('utf-8')  # increased buffer size just in case
+        print("Available files:")
+        for file_info in response.split('|'):
+            file_name = file_info.split(" ")[0]
+            if "_chunk_"in file_name and request_file_name == file_name.split("_chunk_")[0]:
+                file_chunk.append(file_info)
+                print(f" - {file_info}")
+        print()
+        return file_chunk
+    except ConnectionResetError:                                 # Handle the case where the server closes the connection
+        print("Connection was reset. The server might have closed the connection\n\n.")
+        return
+    except BrokenPipeError:                                      # Handle the case where the server closes the connection
+        print("Broken pipe. The server might have closed the connection.\n\n")
+        return
 
 ### For downloading files ###
 # Used to know the size of the file we want to download
@@ -403,7 +461,39 @@ def downloading_file(client_socket):
 
 ### download all the chunk online in the file ###
 def downloading_chunks_online(file_name, file_chunks):
-    
+    chunks_info = {}
+    for chunk_info_str in file_chunks:
+        # Splitting the string to get the chunk name
+        chunk_name = chunk_info_str.split(' ')[0]
+        
+        # Adding the chunk name to the dictionary if not already present
+        if chunk_name not in chunks_info:
+            chunks_info[chunk_name] = []
+        
+        # Finding the index of 'peers:' to later extract the peer info
+        peer_info_start_idx = chunk_info_str.find('peers: ')
+        
+        if peer_info_start_idx != -1:
+            # Extracting the peer info substring
+            peer_info_str = chunk_info_str[peer_info_start_idx + len('peers: '):]
+            # Splitting the peer info string into individual peer info
+            peer_info_list = peer_info_str.split(', ')
+            # Adding the peer info to the corresponding chunk in the dictionary
+            chunks_info[chunk_name].extend(peer_info_list)
+    print(chunks_info)
+
+    for chunk_name, peer_info_list in chunks_info.items():
+        print(chunk_name)
+        for peer_info in peer_info_list:
+            # Split the peer info into IP and port
+            peer_ip, peer_port = peer_info.split(':')
+            if peer_port == str(current_peer_port):
+                continue
+            else:
+                download_file_from_peer(chunk_name, peer_ip, int(peer_port))
+                break
+
+    '''
     max_index = 0
     for chunk in file_chunks:
         file_name = chunk.split(" ")[0]
@@ -414,14 +504,20 @@ def downloading_chunks_online(file_name, file_chunks):
     index = 0
     for index in range(0,max_index+1):
         for chunk in file_chunks: 
+            print(chunk)
             file_name = chunk.split(" ")[0]
             peer_port = chunk.split("peers: ")[1]
-            print("_chunk_"+str(index))
-            print(file_name)
+            print(peer_port)
+            peer_info = peer_port.split(":")  # Split by comma and space
+            print(peer_info)
+            peer_ip = peer_info[0]  # Get the IP address
+            peer_port_num = int(peer_info[1])
+            #print("_chunk_"+str(index))
+            #print(file_name)
             if ("_chunk_"+str(index)) in file_name:
-                download_file_from_peer(file_name, peer_port.split(":")[0], int(peer_port.split(":")[1]) )
+                download_file_from_peer(file_name, peer_ip, peer_port_num)
                 continue
-        print(index)
+        print(index)'''
 
 ### Print out all the file under current folder ###
 def print_out_file_in_current_folder():

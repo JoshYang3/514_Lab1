@@ -23,6 +23,7 @@ def start_server(port=9999):
         
 
 file_registry = {}        
+chunk_registry = {}  # Add this line at the top of your script or before using chunk_registry
 
 
 def handle_client(client_socket, client_addr):
@@ -106,7 +107,7 @@ def handle_client(client_socket, client_addr):
                     print("Chunk not found\n")
                 
                 # Append the peer (IP and port) to the list of peers, if it's not already there
-                if peer_info not in file_registry[chunk_name]['peers'] and peer_info not in chunk_registry[chunk_name]['peers']:
+                if peer_info not in file_registry[chunk_name]['peers']:
                     file_registry[chunk_name]['peers'].append(peer_info)
                 client_socket.send(b'Chunk Registered')
 
