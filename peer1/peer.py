@@ -4,16 +4,29 @@ import os
 import file_utils  # Import the file_utils module
 from time import sleep
 
+current_peer_port = 1111
 
 ### For connecting to the server ###
 # Used to connect to the server
 def connect_to_server(server_ip, server_port):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # Create a socket object
     client_socket.connect((server_ip, server_port))              # Connect to the server
-    return client_socket                                         # Return the socket object
+    message = 'Connected Peers Request'       
+
+    return client_socket                                        # Return the socket object
+
+
+### sent current_peer_port to server ###
+def current_peer_port_to_server(client_socket, peer_port = current_peer_port):
+    
+    message = f'Peer Register|{current_peer_port}' # Create the message to send to the server
+    client_socket.send(message.encode('utf-8'))                  # Send the message to the server
+    response = client_socket.recv(1024).decode('utf-8')          # The server will send an ACK message if the registration is successful
+    print(response, end='\n\n')
+    request_connected_peers(client_socket)
 
 # Used to register files with the server
-def register_files(client_socket, peer_port = 1111):
+def register_files(client_socket, peer_port = current_peer_port):
     file_name = print_out_file_in_current_folder()
     files = get_fileinfo(file_name)
     if file_name == "":
@@ -83,7 +96,7 @@ def request_file_locations(client_socket, file_name):
 ### For other peers connecting ###
 running = True
 # Used to start the peer's server functionality in a separate thread
-def start_peer_server(port=1111):
+def start_peer_server(port=current_peer_port):
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind(('0.0.0.0', port))
     server_socket.listen(5)
@@ -282,38 +295,48 @@ def main():
     peer_ip = '127.0.0.1'
     client_socket.connect((server_ip, server_port))
 
+    
     # Start the peer's server functionality in a separate thread
     threading.Thread(target=start_peer_server).start()
     
+    flag_peer_port = 0
     while True:
-        display_menu()                                                  # Display the menu at the start of each loop iteration
-        user_input = input("Enter the number of your choice: ")
+        try:
+            if flag_peer_port == 0:
+                #current_peer_port_to_server(client_socket, peer_port = current_peer_port)
+                print("XDD")
+                flag_peer_port = 1
 
-        if user_input == '1':
-            register_files(client_socket, peer_port=1111)
-        
-        elif user_input == '2':
-            request_file_list(client_socket)
-        
-        elif user_input == '3':
-            peer_port = int(input("Enter the port of the peer to download from: "))
-            file_name = input("Enter the name of the file to download: ")
-            download_file_from_peer(file_name, peer_ip, peer_port)
-        
-        elif user_input == '4':
-            file_name = input("Enter the name of the file you want to locate: ")
-            request_file_locations(client_socket, file_name)
-        
-        elif user_input == '5':
-            print("Disconnecting...")
-            global running
-            running = False  # Signal the peer server to stop
-            disconnect(client_socket)
-            break  # Exit the loop
-        
-        else:
-            print("Invalid choice, please try again.")
+            display_menu()                                                  # Display the menu at the start of each loop iteration
+            user_input = input("Enter the number of your choice: ")
 
+            if user_input == '1':
+                register_files(client_socket, peer_port=current_peer_port)
+            
+            elif user_input == '2':
+                request_file_list(client_socket)
+            
+            elif user_input == '3':
+                peer_port = int(input("Enter the port of the peer to download from: "))
+                file_name = input("Enter the name of the file to download: ")
+                download_file_from_peer(file_name, peer_ip, peer_port)
+            
+            elif user_input == '4':
+                file_name = input("Enter the name of the file you want to locate: ")
+                request_file_locations(client_socket, file_name)
+            
+            elif user_input == '5':
+                print("Disconnecting...")
+                global running
+                running = False  # Signal the peer server to stop
+                disconnect(client_socket)
+                break  # Exit the loop
+            
+            else:
+                print("Invalid choice, please try again.")
+        except Exception as e:
+             print(f"Error occurred with: {e}")
+        
     # Disconnect from the server
     client_socket.close()
 
