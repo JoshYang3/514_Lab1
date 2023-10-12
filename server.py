@@ -57,6 +57,7 @@ def handle_client(client_socket, client_addr):
                     if peer_info not in file_registry[file_name]['peers']:
                         file_registry[file_name]['peers'].append(peer_info)     # Store the file info in a dictionary
                 client_socket.send(b'File Registed')
+
             elif command == 'File List Request':
                 if(file_registry == {}):                                        # If the file list is empty
                     client_socket.send('File registry is empty'.encode('utf-8'))
@@ -64,6 +65,7 @@ def handle_client(client_socket, client_addr):
                     # Send the file list and its associated peers
                     file_list_with_peers = '|'.join(f'{filename} (size: {file_info["size"]}) from peers: {", ".join([f"{peer[0]}:{peer[1]}" for peer in file_info["peers"]])}' for filename, file_info in file_registry.items())
                     client_socket.send(file_list_with_peers.encode('utf-8'))               # Send the list of files to the client
+
             elif command == 'File Locations Request':
                 file_name = args[0]  # Extract the filename from the request arguments
                 if file_name in file_registry:
@@ -73,6 +75,7 @@ def handle_client(client_socket, client_addr):
                     client_socket.send(response.encode('utf-8'))
                 else:
                     client_socket.send('File not found.\n'.encode('utf-8'))
+
             elif command == 'Disconnect':
                 for peer in connected_peers:
                     if(peer['addr'] == client_addr):
@@ -81,6 +84,7 @@ def handle_client(client_socket, client_addr):
                     print(i)
                 print(f"Received disconnect command from client {client_addr}.")
                 break  # Exit the loop
+
             elif command == 'Connected Peers Request':
                 peers_list = '|'.join([f'{peer["current_peer_port"]}' for peer in connected_peers])
                 client_socket.send(peers_list.encode('utf-8'))
@@ -91,12 +95,27 @@ def handle_client(client_socket, client_addr):
                 for i in connected_peers:
                     print(i)
                 client_socket.send(b'Peer Port Registered')
+            elif command == 'Register Chunk':
+                chunk_name, peer_port = args
+                peer_ip = client_addr[0]
+                peer_info = (peer_ip, int(peer_port))
+
+                # Create an entry if it doesn't exist
+                if chunk_name not in file_registry:
+                    print("Chunk not found\n")
+
+                # Append the peer (IP and port) to the list of peers, if it's not already there
+                if peer_info not in file_registry[chunk_name]['peers']:
+                    file_registry[chunk_name]['peers'].append(peer_info)
+                client_socket.send(b'Chunk Registered')
 
 
     except Exception as e:
         print(f"Error occurred with client {client_addr}: {e}")
     finally:
         client_socket.close()
+
+
 
 if __name__ == "__main__":
     start_server()
