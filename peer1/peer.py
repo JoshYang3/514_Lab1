@@ -32,7 +32,6 @@ def register_files(client_socket, peer_port=current_peer_port):
         print("No such file!")
         return
     chunk_file_paths = split_file_into_chunks(file_name)  # Split the file into chunks
-    sleep(10)
     files = get_fileinfo(file_name, chunk_file_paths)  # Get file info for all chunks and the complete file
     file_info = '|'.join(f'{filename}|{file_detail["size"]}' for filename, file_detail in files.items())
     message = f'Register Request|{len(files)}|{file_info}|{peer_port}'
@@ -50,6 +49,8 @@ def send_chunks_to_peer(file_name, peer_port):
     if not peer_port or not str(peer_port).isdigit():
         print(f"Invalid port number: {peer_port}")
         return  # Skip to the next iteration
+    if peer_port == current_peer_port:
+        return
     try:
         # Create a new socket to connect to the peer
         peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -66,6 +67,7 @@ def send_chunks_to_peer(file_name, peer_port):
             #random_chunk_path = random.choice(chunk_file_paths)  # Randomly select a chunk file path
             with open(file_name, 'rb') as chunk_file:
                 file_data = chunk_file.read()
+                #print(file_data)
                 #chunk = chunk_file.read()  # Read the entire chunk file
                 send_chunk(peer_socket, file_data)
             send_chunk(peer_socket, b'EOF')
