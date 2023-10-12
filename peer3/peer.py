@@ -461,7 +461,10 @@ def downloading_chunks_online(file_name, file_chunks, client_socket):
             
             if ("_chunk_"+str(index)) in file_name:
                 if peer_port.split(":")[1] in connected_peers:
-                    download_file_from_peer(file_name, peer_port.split(":")[0], int(peer_port.split(":")[1]) )
+                    port_list = []
+                    for port in peer_port.split(", "):
+                        port_list.append(port)
+                    download_file_from_peer(file_name, port_list[0].split(":")[0], int(port_list[0].split(":")[1]) )
                     continue
 
 ### Print out all the file under current folder ###
