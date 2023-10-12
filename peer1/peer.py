@@ -351,6 +351,10 @@ def print_out_file_in_current_folder():
     
     return file_name
     
+### Assemble Chunks ###
+def assemble_file_from_chunks(original_filename, total_size):
+    chunk_size = 50*1024
+    total_chunks = -(-total_size // chunk_size)  # Calculate the total number of chunks, equivalent to math.ceil(total_size / chunk_size)
     
 ###
 ### Main function ###
