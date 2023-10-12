@@ -3,6 +3,8 @@ import threading
 import os
 import random
 import hashlib
+from tqdm import tqdm
+
 import file_utils  # Import the file_utils module
 from time import sleep
 
@@ -256,19 +258,21 @@ def list_and_select_file_to_download(client_socket):
         client_socket.send(message.encode('utf-8'))
         response = client_socket.recv(4096).decode('utf-8')  # increased buffer size just in case
         print("Available files:")
+        index = 1
         for file_info in response.split('|'):
             file_name = file_info.split(" ")[0]
 
-            index = 1;
+            
             if not "_chunk_"in file_name:
                 print(str(index) +"-"+ file_name)
                 index = index+1
 
 
         user_input = input("Choose the file to download:(only enter the index of file)")
-
-        index = 1
+        
+        
         valid_userinput = 0
+        index = 1
         for file_info in response.split('|'):
             file_name = file_info.split(" ")[0]
             if not "_chunk_"in file_name:
@@ -276,15 +280,18 @@ def list_and_select_file_to_download(client_socket):
                     valid_userinput = 1
                     print("Select "+file_name+" to download!")
                     return file_info
-                index = index+1
+                index += 1
+                    
         if valid_userinput == 0:
-            return ""
+            return ""  
+        
     except ConnectionResetError:                                 # Handle the case where the server closes the connection
         print("Connection was reset. The server might have closed the connection\n\n.")
         return
     except BrokenPipeError:                                      # Handle the case where the server closes the connection
         print("Broken pipe. The server might have closed the connection.\n\n")
         return
+    
 
 ### Used to get chunk list for a file ###
 def request_file_chunk(request_file_name, client_socket):
@@ -462,6 +469,7 @@ def downloading_file(client_socket):
 ### download all the chunk online in the file ###
 def downloading_chunks_online(file_name, file_chunks):
     chunks_info = {}
+    
     for chunk_info_str in file_chunks:
         # Splitting the string to get the chunk name
         chunk_name = chunk_info_str.split(' ')[0]
@@ -480,8 +488,9 @@ def downloading_chunks_online(file_name, file_chunks):
             peer_info_list = peer_info_str.split(', ')
             # Adding the peer info to the corresponding chunk in the dictionary
             chunks_info[chunk_name].extend(peer_info_list)
-    print(chunks_info)
+    #print(chunks_info)
 
+    download_threads = []
     for chunk_name, peer_info_list in chunks_info.items():
         print(chunk_name)
         for peer_info in peer_info_list:
@@ -490,9 +499,16 @@ def downloading_chunks_online(file_name, file_chunks):
             if peer_port == str(current_peer_port):
                 continue
             else:
-                download_file_from_peer(chunk_name, peer_ip, int(peer_port))
-                break
+                download_thread = threading.Thread(
+                    target=download_file_from_peer,
+                    args=(chunk_name, peer_ip, int(peer_port))
+                )
+                download_threads.append(download_thread)
+                download_thread.start()
 
+    for download_thread in download_threads:
+        download_thread.join()
+    print("All chunks downloaded.")
     '''
     max_index = 0
     for chunk in file_chunks:
