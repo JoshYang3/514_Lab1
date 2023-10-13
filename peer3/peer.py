@@ -39,7 +39,7 @@ def register_files(client_socket, peer_port=current_peer_port):
     message = f'Register Request|{len(files)}|{file_info}|{peer_port}'
     client_socket.send(message.encode('utf-8'))
     response = client_socket.recv(1024).decode('utf-8')
-    print(response, end='\n\n')
+    #print(response, end='\n\n')
     connected_peers = request_connected_peers(client_socket)
     split_info = file_info.split('|')
     file_names = split_info[::2]
@@ -54,7 +54,7 @@ def register_files(client_socket, peer_port=current_peer_port):
             current_dir = os.path.dirname(os.path.abspath(__file__))
             full_path_file_name = os.path.join(current_dir, file_name)
             chunk_hash = chunk_hashes.get(full_path_file_name, None)
-            print(chunk_hash)
+            #print(chunk_hash)
             if chunk_hash is not None:
                 send_chunks_to_peer(file_name, int(peer_port), chunk_hash)  # Pass the hash value if found
             else:
