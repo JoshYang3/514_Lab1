@@ -2,7 +2,8 @@ import socket
 import threading
 import os
 import random
-import re
+import hashlib
+
 import file_utils  # Import the file_utils module
 from time import sleep
 
@@ -32,7 +33,7 @@ def register_files(client_socket, peer_port=current_peer_port):
     if file_name == "":
         print("No such file!")
         return
-    chunk_file_paths = split_file_into_chunks(file_name)  # Split the file into chunks
+    chunk_file_paths, chunk_hashes = split_file_into_chunks(file_name)  # Split the file into chunks
     files = get_fileinfo(file_name, chunk_file_paths)  # Get file info for all chunks and the complete file
     file_info = '|'.join(f'{filename}|{file_detail["size"]}' for filename, file_detail in files.items())
     message = f'Register Request|{len(files)}|{file_info}|{peer_port}'
@@ -50,9 +51,16 @@ def register_files(client_socket, peer_port=current_peer_port):
     for peer_port in connected_peers:
         selected_files = random.sample(chunk_files, num_files_to_select) # Randomly select 25% of the chunks to send to each peer
         for file_name in selected_files:
-            send_chunks_to_peer(file_name, int(peer_port))
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            full_path_file_name = os.path.join(current_dir, file_name)
+            chunk_hash = chunk_hashes.get(full_path_file_name, None)
+            print(chunk_hash)
+            if chunk_hash is not None:
+                send_chunks_to_peer(file_name, int(peer_port), chunk_hash)  # Pass the hash value if found
+            else:
+                print(f"Hash not found for {file_name}")
 
-def send_chunks_to_peer(file_name, peer_port):
+def send_chunks_to_peer(file_name, peer_port, chunk_hashes):
     if not peer_port or not str(peer_port).isdigit():
         print(f"Invalid port number: {peer_port}")
         return  # Skip to the next iteration
@@ -64,12 +72,14 @@ def send_chunks_to_peer(file_name, peer_port):
         peer_socket.connect(('127.0.0.1', int(peer_port)))  # Assuming all peers are on the same machine
         
         # Notify the peer about the incoming file chunks
-        message = f'File Chunk Offer|{file_name}'
+        hash_value = chunk_hashes
+        
+        message = f'File Chunk Offer|{file_name}|{hash_value}'
         peer_socket.send(message.encode('utf-8'))
         CHUNK_SIZE = 4096
         # Check if the peer is interested in receiving the chunks
         response = peer_socket.recv(1024).decode('utf-8')
-        print(response)
+        #print(response)
         if response == 'Accept Chunk':
             #random_chunk_path = random.choice(chunk_file_paths)  # Randomly select a chunk file path
             with open(file_name, 'rb') as chunk_file:
@@ -81,66 +91,6 @@ def send_chunks_to_peer(file_name, peer_port):
         peer_socket.close()
     except Exception as e:
         print(f"Error sending chunks to peer on port {peer_port}: {e}")
-
-### Used to list and select file to download ###
-def list_and_select_file_to_download(client_socket):
-    message = 'File List Request'                                # Create the message to send to the server
-    try:
-        client_socket.send(message.encode('utf-8'))
-        response = client_socket.recv(4096).decode('utf-8')  # increased buffer size just in case
-        print("Available files:")
-        for file_info in response.split('|'):
-            file_name = file_info.split(" ")[0]
-            
-            index = 1;
-            if not "_chunk_"in file_name:
-                print(str(index) +"-"+ file_name)
-                index = index+1
-        
-
-        user_input = input("Choose the file to download:(only enter the index of file)")
-        
-        index = 1
-        valid_userinput = 0
-        for file_info in response.split('|'):
-            file_name = file_info.split(" ")[0]
-            if not "_chunk_"in file_name:
-                if str(index) == user_input:
-                    valid_userinput = 1
-                    print("Select "+file_name+" to download!")
-                    return file_info
-                index = index+1
-        if valid_userinput == 0:
-            return ""
-    except ConnectionResetError:                                 # Handle the case where the server closes the connection
-        print("Connection was reset. The server might have closed the connection\n\n.")
-        return
-    except BrokenPipeError:                                      # Handle the case where the server closes the connection
-        print("Broken pipe. The server might have closed the connection.\n\n")
-        return
-
-### Used to get chunk list for a file ###
-def request_file_chunk(request_file_name, client_socket):
-    message = 'File List Request'                                # Create the message to send to the server
-    try:
-        file_chunk = []
-        client_socket.send(message.encode('utf-8'))
-        response = client_socket.recv(4096).decode('utf-8')  # increased buffer size just in case
-        print("Available files:")
-        for file_info in response.split('|'):
-            file_name = file_info.split(" ")[0]
-            if "_chunk_"in file_name and request_file_name == file_name.split("_chunk_")[0]:
-                file_chunk.append(file_info)
-                print(f" - {file_info}")
-        print()
-        return file_chunk
-    except ConnectionResetError:                                 # Handle the case where the server closes the connection
-        print("Connection was reset. The server might have closed the connection\n\n.")
-        return
-    except BrokenPipeError:                                      # Handle the case where the server closes the connection
-        print("Broken pipe. The server might have closed the connection.\n\n")
-        return
-    
 
 # Used to request the list of files from the server
 def request_file_list(client_socket):
@@ -235,7 +185,6 @@ def get_fileinfo(filename, chunk_file_paths):
 
     return files_info
 
-
 # Used to handle requests from other peers
 def handle_peer_request(client_socket, client_addr):
     try:
@@ -250,8 +199,6 @@ def handle_peer_request(client_socket, client_addr):
             if not args:  # Check if args list is empty
                 client_socket.send("Invalid request: No arguments provided.".encode('utf-8'))
                 continue
-
-            
 
             if command == 'File Size Request':
                 request_file = args[0]
@@ -282,7 +229,8 @@ def handle_peer_request(client_socket, client_addr):
                 send_chunk(client_socket, b'EOF')  # Signal end of file
 
             elif command == 'File Chunk Offer':
-                file_name = args[0]
+                file_name, received_hash_value = args
+
                 client_socket.send(b'Accept Chunk')  # Indicate willingness to accept the chunk
                 with open(f'{file_name}', 'wb') as f:
                     while True:
@@ -290,6 +238,10 @@ def handle_peer_request(client_socket, client_addr):
                         if chunk == b'EOF':
                             break  # End of chunk
                         f.write(chunk)
+                computed_hash_value = compute_hash(f'{file_name}')
+                if computed_hash_value != received_hash_value:
+                    os.remove(f'{file_name}')  # Discard the modified chunk by deleting it
+                    print("Hash verification failed. Discarding chunk.")
                 client_socket.send("Chunk received successfully.".encode('utf-8'))
                 register_chunk_with_server(file_name, current_peer_port)
 
@@ -298,6 +250,69 @@ def handle_peer_request(client_socket, client_addr):
     finally:
         client_socket.close()
 
+### Used to list and select file to download ###
+def list_and_select_file_to_download(client_socket):
+    message = 'File List Request'                                # Create the message to send to the server
+    try:
+        client_socket.send(message.encode('utf-8'))
+        response = client_socket.recv(4096).decode('utf-8')  # increased buffer size just in case
+        print("Available files:")
+        index = 1
+        for file_info in response.split('|'):
+            file_name = file_info.split(" ")[0]
+
+            
+            if not "_chunk_"in file_name:
+                print(str(index) +"-"+ file_name)
+                index = index+1
+
+
+        user_input = input("Choose the file to download:(only enter the index of file)")
+        
+        
+        valid_userinput = 0
+        index = 1
+        for file_info in response.split('|'):
+            file_name = file_info.split(" ")[0]
+            if not "_chunk_"in file_name:
+                if str(index) == user_input:
+                    valid_userinput = 1
+                    print("Select "+file_name+" to download!")
+                    return file_info
+                index += 1
+                    
+        if valid_userinput == 0:
+            return ""  
+        
+    except ConnectionResetError:                                 # Handle the case where the server closes the connection
+        print("Connection was reset. The server might have closed the connection\n\n.")
+        return
+    except BrokenPipeError:                                      # Handle the case where the server closes the connection
+        print("Broken pipe. The server might have closed the connection.\n\n")
+        return
+    
+
+### Used to get chunk list for a file ###
+def request_file_chunk(request_file_name, client_socket):
+    message = 'File List Request'                                # Create the message to send to the server
+    try:
+        file_chunk = []
+        client_socket.send(message.encode('utf-8'))
+        response = client_socket.recv(4096).decode('utf-8')  # increased buffer size just in case
+        print("Available files:")
+        for file_info in response.split('|'):
+            file_name = file_info.split(" ")[0]
+            if "_chunk_"in file_name and request_file_name == file_name.split("_chunk_")[0]:
+                file_chunk.append(file_info)
+                print(f" - {file_info}")
+        print()
+        return file_chunk
+    except ConnectionResetError:                                 # Handle the case where the server closes the connection
+        print("Connection was reset. The server might have closed the connection\n\n.")
+        return
+    except BrokenPipeError:                                      # Handle the case where the server closes the connection
+        print("Broken pipe. The server might have closed the connection.\n\n")
+        return
 
 ### For downloading files ###
 # Used to know the size of the file we want to download
@@ -351,10 +366,18 @@ def display_menu():
     print("5. Downloading file")
     print("6. Exit")
 
+def compute_hash(file_path):
+    sha256 = hashlib.sha256()
+    with open(file_path, 'rb') as f:
+        for block in iter(lambda: f.read(4096), b''):
+            sha256.update(block)
+    return sha256.hexdigest()
+
 ### Split a complete file into chunks(each chunk is 50kB) ###
 def split_file_into_chunks(file_path, chunk_size=50*1024):
     current_dir = os.path.dirname(os.path.abspath(__file__))
     chunk_file_paths = []  # List to store chunk file paths
+    chunk_hashes = {}  # New dictionary to store chunk hash values
 
     with open(file_path, 'rb') as file:
         chunk = file.read(chunk_size)
@@ -365,12 +388,13 @@ def split_file_into_chunks(file_path, chunk_size=50*1024):
             with open(chunk_file_path, 'wb') as chunk_file:
                 chunk_file.write(chunk)
             chunk_file_paths.append(chunk_file_path)  # Append the chunk file path to the list
+            chunk_hashes[chunk_file_path] = compute_hash(chunk_file_path)  # Compute and store hash value
 
             chunk_number += 1
             chunk = file.read(chunk_size)
 
     print(f"File '{file_path}' has been split into {chunk_number} chunks and saved in folder '{current_dir}'.")
-    return chunk_file_paths  # Return the list of chunk file paths
+    return chunk_file_paths, chunk_hashes  # Return the list of chunk file paths
 
 ### Request the peers that are connecting to server now ###
 def request_connected_peers(client_socket):
@@ -438,12 +462,83 @@ def downloading_file(client_socket):
     print(file_info)
     
     file_chunks = request_file_chunk(file_name, client_socket)
-    downloading_chunks_online(file_name, file_chunks, client_socket)
+    downloading_chunks_online(file_name, file_chunks)
     assemble_file_from_chunks(file_name, file_size)
 
 ### download all the chunk online in the file ###
-def downloading_chunks_online(file_name, file_chunks, client_socket):
+def downloading_chunks_online(file_name, file_chunks):
     
+    
+    chunks_info = {}
+    
+    for chunk_info_str in file_chunks:
+        # Splitting the string to get the chunk name
+        chunk_name = chunk_info_str.split(' ')[0]
+        
+        # Adding the chunk name to the dictionary if not already present
+        if chunk_name not in chunks_info:
+            chunks_info[chunk_name] = []
+        
+        # Finding the index of 'peers:' to later extract the peer info
+        peer_info_start_idx = chunk_info_str.find('peers: ')
+        
+        if peer_info_start_idx != -1:
+            # Extracting the peer info substring
+            peer_info_str = chunk_info_str[peer_info_start_idx + len('peers: '):]
+            # Splitting the peer info string into individual peer info
+            peer_info_list = peer_info_str.split(', ')
+            # Adding the peer info to the corresponding chunk in the dictionary
+            chunks_info[chunk_name].extend(peer_info_list)
+    #print("chunks_info")
+    #print(chunks_info)
+    
+    # Sorting chunks by their frequency (rarest first)
+    sorted_chunks = sorted(chunks_info.keys(), key=lambda x: len(chunks_info[x]))
+
+    download_threads = []
+    for chunk_name in sorted_chunks:
+        peer_info_list = chunks_info[chunk_name]
+        for peer_info in peer_info_list:
+            peer_ip, peer_port = peer_info.split(':')
+            if peer_port == str(current_peer_port):
+                continue
+            else:
+                #print(chunk_name)
+                download_thread = threading.Thread(
+                    target=download_file_from_peer,
+                    args=(chunk_name, peer_ip, int(peer_port))
+                )
+                download_threads.append(download_thread)
+                download_thread.start()
+                break  # Break after starting a thread to download the chunk from one peer
+
+    for download_thread in download_threads:
+        download_thread.join()
+
+    print("All chunks downloaded.")
+
+    """download_threads = []
+    for chunk_name, peer_info_list in chunks_info.items():
+        print(chunk_name)
+        for peer_info in peer_info_list:
+            # Split the peer info into IP and port
+            peer_ip, peer_port = peer_info.split(':')
+            if peer_port == str(current_peer_port):
+                continue
+            else:
+                download_thread = threading.Thread(
+                    target=download_file_from_peer,
+                    args=(chunk_name, peer_ip, int(peer_port))
+                )
+                download_threads.append(download_thread)
+                download_thread.start()
+
+    for download_thread in download_threads:
+        download_thread.join()
+    print("All chunks downloaded.")"""
+
+
+    '''
     max_index = 0
     for chunk in file_chunks:
         file_name = chunk.split(" ")[0]
@@ -456,18 +551,20 @@ def downloading_chunks_online(file_name, file_chunks, client_socket):
     index = 0
     for index in range(0,max_index+1):
         for chunk in file_chunks: 
+            print(chunk)
             file_name = chunk.split(" ")[0]
             peer_port = chunk.split("peers: ")[1]
-            
+            print(peer_port)
+            peer_info = peer_port.split(":")  # Split by comma and space
+            print(peer_info)
+            peer_ip = peer_info[0]  # Get the IP address
+            peer_port_num = int(peer_info[1])
+            #print("_chunk_"+str(index))
+            #print(file_name)
             if ("_chunk_"+str(index)) in file_name:
-                if peer_port.split(":")[1] in connected_peers:
-                    port_list = []
-                    print(peer_port.split(", ")[0])
-                    for port in peer_port.split(", "):
-                        port_list.append(port)
-                        print(port)
-                    download_file_from_peer(file_name, port_list[0].split(":")[0], int(port_list[0].split(":")[1]) )
-                    continue
+                download_file_from_peer(file_name, peer_ip, peer_port_num)
+                continue
+        print(index)'''
 
 ### Print out all the file under current folder ###
 def print_out_file_in_current_folder():
@@ -482,8 +579,9 @@ def print_out_file_in_current_folder():
     
     i = 1
     for file in files:
-        print(str(i)+"."+file)
-        i += 1
+        if ".py" not in file and "_chunk_" not in file:
+            print(str(i)+"."+file)
+            i += 1
         
     
     # Choose file
@@ -493,10 +591,11 @@ def print_out_file_in_current_folder():
     file_name = ""
     j = 1
     for file in files:
-        if str(j) == user_input:
-            file_name = file
-            split_file_into_chunks(file)
-        j += 1
+        if ".py" not in file and "_chunk_" not in file:
+            if str(j) == user_input:
+                file_name = file
+                split_file_into_chunks(file)
+            j += 1
     
     return file_name
     
